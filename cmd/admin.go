@@ -33,7 +33,7 @@ to make automatic initialization process more smoothly`,
 			stringFlag("password", "", "User password"),
 			stringFlag("email", "", "User email address"),
 			boolFlag("admin", "User is an admin"),
-			stringFlag("config, c", "custom/conf/app.ini", "Custom configuration file path"),
+			stringFlag("config, c", "/etc/gogs.ini", "Custom configuration file path"),
 		},
 	}
 )

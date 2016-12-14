@@ -59,6 +59,7 @@ var (
 	AppSubUrlDepth int // Number of slashes
 	AppPath        string
 	AppDataPath    string
+	AppTmpPath     string
 
 	// Server settings
 	Protocol             Scheme
@@ -346,8 +347,18 @@ func NewContext() {
 	}
 
 	if len(CustomConf) == 0 {
+		// Try to load system wide config
+		if com.IsFile("/etc/gogs.ini") {
+			if err = Cfg.Append("/etc/gogs.ini"); err != nil {
+				log.Fatal(4, "Fail to load system conf '/etc/gogs.ini': %v", err)
+			}
+		} else {
+			log.Info("No system config '/etc/gogs.ini' found, this can be ignored")
+		}
+
+		// Try to load local config
 		CustomConf = CustomPath + "/conf/app.ini"
-	}
+	} // else: Try to load specified config
 
 	if com.IsFile(CustomConf) {
 		if err = Cfg.Append(CustomConf); err != nil {
@@ -407,7 +418,8 @@ func NewContext() {
 	OfflineMode = sec.Key("OFFLINE_MODE").MustBool()
 	DisableRouterLog = sec.Key("DISABLE_ROUTER_LOG").MustBool()
 	StaticRootPath = sec.Key("STATIC_ROOT_PATH").MustString(workDir)
-	AppDataPath = sec.Key("APP_DATA_PATH").MustString("data")
+	AppDataPath = sec.Key("APP_DATA_PATH").MustString("/var/lib/gogs")
+	AppTmpPath = sec.Key("APP_TMP_PATH").MustString(filepath.Join(os.TempDir(), "gogs"))
 	EnableGzip = sec.Key("ENABLE_GZIP").MustBool()
 
 	switch sec.Key("LANDING_PAGE").MustString("home") {
@@ -491,7 +503,7 @@ func NewContext() {
 
 	// Determine and create root git repository path.
 	sec = Cfg.Section("repository")
-	RepoRootPath = sec.Key("ROOT").MustString(path.Join(homeDir, "gogs-repositories"))
+	RepoRootPath = sec.Key("ROOT").MustString(path.Join(AppDataPath, "repos"))
 	forcePathSeparator(RepoRootPath)
 	if !filepath.IsAbs(RepoRootPath) {
 		RepoRootPath = path.Join(workDir, RepoRootPath)
@@ -699,8 +711,8 @@ func newCacheService() {
 func newSessionService() {
 	SessionConfig.Provider = Cfg.Section("session").Key("PROVIDER").In("memory",
 		[]string{"memory", "file", "redis", "mysql"})
-	SessionConfig.ProviderConfig = strings.Trim(Cfg.Section("session").Key("PROVIDER_CONFIG").String(), "\" ")
-	SessionConfig.CookieName = Cfg.Section("session").Key("COOKIE_NAME").MustString("i_like_gogits")
+	SessionConfig.ProviderConfig = strings.Trim(Cfg.Section("session").Key("PROVIDER_CONFIG").MustString(path.Join(AppDataPath, "sessions")), "\" ")
+	SessionConfig.CookieName = Cfg.Section("session").Key("COOKIE_NAME").MustString("gogs")
 	SessionConfig.CookiePath = AppSubUrl
 	SessionConfig.Secure = Cfg.Section("session").Key("COOKIE_SECURE").MustBool()
 	SessionConfig.Gclifetime = Cfg.Section("session").Key("GC_INTERVAL_TIME").MustInt64(86400)
